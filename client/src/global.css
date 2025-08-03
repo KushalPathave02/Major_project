@@ -1,0 +1,18 @@
+/* Remove unwanted margin/padding from body and root, and set background color */
+body, #root {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  box-sizing: border-box;
+  background: var(--bg-color, #181a29);
+  color: var(--text-color, #fff);
+}
+
+html {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  box-sizing: border-box;
+  background: var(--bg-color, #181a29);
+  color: var(--text-color, #fff);
+}

@@ -1,0 +1,45 @@
+# Node modules
+client/node_modules/
+server/node_modules/
+
+# Build output
+client/dist/
+client/build/
+server/dist/
+server/build/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Env files (ignore real .env files, but allow .env.example for sharing templates)
+client/.env
+client/.env.local
+client/.env.development
+client/.env.production
+!client/.env.example
+server/.env
+server/.env.local
+server/.env.development
+server/.env.production
+!server/.env.example
+
+# IDE settings
+.vscode/
+.idea/
+
+# Test coverage
+client/coverage/
+server/coverage/
+
+# Misc
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Spline and Lottie cache (client)
+client/.spline/
+client/.lottie/
