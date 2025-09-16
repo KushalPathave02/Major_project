@@ -26,6 +26,9 @@ const Messages: React.FC = () => {
   const [supportDialog, setSupportDialog] = useState(false);
   const [supportTitle, setSupportTitle] = useState('');
   const [supportBody, setSupportBody] = useState('');
+  const [feedbackDialog, setFeedbackDialog] = useState(false);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [feedbackRating, setFeedbackRating] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
@@ -105,7 +108,10 @@ const Messages: React.FC = () => {
         <Badge badgeContent={unreadCount} color="secondary" invisible={unreadCount === 0}>
           <HelpIcon sx={{ color: '#a78bfa', fontSize: 32 }} />
         </Badge>
-        <Button variant="contained" onClick={() => setSupportDialog(true)} sx={{ ml: 2, background: 'linear-gradient(90deg,#7c3aed,#a78bfa)', color: '#fff', fontWeight: 700 }}>New Support Request</Button>
+        <Box>
+          <Button variant="outlined" onClick={() => setFeedbackDialog(true)} sx={{ mr: 1, borderColor: '#7c3aed', color: '#7c3aed', fontWeight: 700 }}>Give Feedback</Button>
+          <Button variant="contained" onClick={() => setSupportDialog(true)} sx={{ background: 'linear-gradient(90deg,#7c3aed,#a78bfa)', color: '#fff', fontWeight: 700 }}>New Support Request</Button>
+        </Box>
       </Box>
       {feedback && <Box sx={{ mb: 2, color: '#ff1744', fontWeight: 600 }}>{feedback}</Box>}
       {loading ? (
@@ -170,6 +176,75 @@ const Messages: React.FC = () => {
           <Button onClick={() => setSupportDialog(false)} disabled={submitting}>Cancel</Button>
           <Button variant="contained" onClick={handleSupportSubmit} disabled={submitting || !supportTitle || !supportBody} sx={{ background: 'linear-gradient(90deg,#7c3aed,#a78bfa)' }}>
             {submitting ? <CircularProgress size={20} /> : 'Send'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Feedback Dialog */}
+      <Dialog open={feedbackDialog} onClose={() => setFeedbackDialog(false)}>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pr: 1 }}>
+          Share Feedback
+          <IconButton aria-label="close" onClick={() => setFeedbackDialog(false)} size="small" sx={{ ml: 2 }}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <TextField
+            margin="dense"
+            label="Your feedback"
+            fullWidth
+            multiline
+            minRows={3}
+            value={feedbackText}
+            onChange={e => setFeedbackText(e.target.value)}
+            variant="outlined"
+          />
+          <TextField
+            margin="dense"
+            label="Rating (1-5, optional)"
+            fullWidth
+            value={feedbackRating}
+            onChange={e => setFeedbackRating(e.target.value)}
+            variant="outlined"
+            inputProps={{ inputMode: 'numeric', pattern: '[1-5]?' }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setFeedbackDialog(false)} disabled={submitting}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={async () => {
+              setSubmitting(true);
+              setFeedback(null);
+              try {
+                const token = localStorage.getItem('token');
+                const res = await fetch(`${API_URL}/api/messages/feedback`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: token ? `Bearer ${token}` : '',
+                  },
+                  body: JSON.stringify({ body: feedbackText, rating: feedbackRating ? Number(feedbackRating) : undefined }),
+                });
+                if (res.ok) {
+                  setFeedbackDialog(false);
+                  setFeedbackText('');
+                  setFeedbackRating('');
+                  setFeedback('Thank you for your feedback!');
+                  fetchMessages();
+                } else {
+                  const d = await res.json().catch(() => ({} as any));
+                  setFeedback(d.message || 'Failed to submit feedback.');
+                }
+              } catch (e) {
+                setFeedback('Network error while submitting feedback.');
+              }
+              setSubmitting(false);
+            }}
+            disabled={submitting || !feedbackText.trim()}
+            sx={{ background: 'linear-gradient(90deg,#7c3aed,#a78bfa)' }}
+          >
+            {submitting ? <CircularProgress size={20} /> : 'Submit'}
           </Button>
         </DialogActions>
       </Dialog>

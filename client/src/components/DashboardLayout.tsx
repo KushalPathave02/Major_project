@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Box, Drawer, AppBar, Toolbar, Typography, List, ListItem, ListItemIcon, ListItemText, CssBaseline, Avatar, InputBase, IconButton, ThemeProvider, createTheme, Badge, Menu } from '@mui/material';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Box, Drawer, AppBar, Toolbar, Typography, List, ListItem, ListItemIcon, ListItemText, CssBaseline, Avatar, InputBase, IconButton, ThemeProvider, createTheme, Badge, Menu, ToggleButtonGroup, ToggleButton } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
@@ -25,12 +25,16 @@ const navItems = [
 ];
 
 import { useTheme } from '../ThemeContext';
+import { useCurrency } from '../CurrencyContext';
 
 const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
   const [profileAnchorEl, setProfileAnchorEl] = useState<null | HTMLElement>(null);
   const [profile, setProfile] = useState<{ name?: string; email?: string; profilePic?: string; role?: string } | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [avatarSrc, setAvatarSrc] = useState<string | undefined>(undefined);
+  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+  const { currency, setCurrency } = useCurrency();
 
   React.useEffect(() => {
     if (profileAnchorEl) {
@@ -66,6 +70,39 @@ fetch(`${API_URL}/users/profile`, {
         .finally(() => setProfileLoading(false));
     }
   }, [profileAnchorEl]);
+
+  // Compute avatar src whenever profile or localStorage changes
+  useEffect(() => {
+    const computeSrc = () => {
+      const pic = profile?.profilePic || localStorage.getItem('profilePic') || undefined;
+      if (!pic) return setAvatarSrc(undefined);
+      if (pic.startsWith('http')) return setAvatarSrc(pic);
+      return setAvatarSrc(`${API_URL}${pic}`);
+    };
+    computeSrc();
+  }, [profile, API_URL]);
+
+  // Listen for storage changes and custom event from Personal page
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'profilePic') {
+        const val = e.newValue || undefined;
+        if (!val) setAvatarSrc(undefined);
+        else setAvatarSrc(val.startsWith('http') ? val : `${API_URL}${val}`);
+      }
+    };
+    const onCustom = () => {
+      const val = localStorage.getItem('profilePic') || undefined;
+      if (!val) setAvatarSrc(undefined);
+      else setAvatarSrc(val.startsWith('http') ? val : `${API_URL}${val}`);
+    };
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('profilePicUpdated', onCustom as any);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('profilePicUpdated', onCustom as any);
+    };
+  }, [API_URL]);
 
   return (
     <>
@@ -116,14 +153,27 @@ fetch(`${API_URL}/users/profile`, {
           >
             <Toolbar sx={{ minHeight: 80, display: 'flex', justifyContent: 'flex-end' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                {/* Currency Switcher */}
+                <ToggleButtonGroup
+                  exclusive
+                  color="secondary"
+                  size="small"
+                  value={currency}
+                  onChange={(_, val) => { if (val) setCurrency(val); }}
+                  sx={{ mr: 1, background: '#1c2030', borderRadius: 2 }}
+                >
+                  <ToggleButton value="INR" sx={{ color: '#b0b8d1' }}>INR</ToggleButton>
+                  <ToggleButton value="USD" sx={{ color: '#b0b8d1' }}>USD</ToggleButton>
+                  <ToggleButton value="EUR" sx={{ color: '#b0b8d1' }}>EUR</ToggleButton>
+                </ToggleButtonGroup>
 
                 <IconButton onClick={(e) => setProfileAnchorEl(e.currentTarget)}>
                   <Avatar
-  src={profile?.profilePic ? (profile.profilePic.startsWith('http') ? profile.profilePic : `http://localhost:5000${profile.profilePic}`) : undefined}
-  sx={{ bgcolor: '#7c3aed', width: 40, height: 40, fontWeight: 700, fontSize: 20 }}
->
-  {profile?.name ? profile.name[0].toUpperCase() : 'U'}
-</Avatar>
+                    src={avatarSrc}
+                    sx={{ bgcolor: '#7c3aed', width: 40, height: 40, fontWeight: 700, fontSize: 20 }}
+                  >
+                    {profile?.name ? profile.name[0].toUpperCase() : (localStorage.getItem('name')?.[0]?.toUpperCase() || 'U')}
+                  </Avatar>
                 </IconButton>
                 <Menu
                   anchorEl={profileAnchorEl}

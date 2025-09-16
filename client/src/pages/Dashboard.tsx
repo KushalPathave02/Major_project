@@ -4,9 +4,10 @@ import DashboardLayout from '../components/DashboardLayout';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import LineChartInfographic from '../components/LineChartInfographic';
 
-import { TextField, MenuItem, IconButton, Button, Menu, MenuItem as MuiMenuItem, ToggleButtonGroup, ToggleButton } from '@mui/material';
+import { TextField, MenuItem, IconButton, Button, Menu, MenuItem as MuiMenuItem, ToggleButtonGroup, ToggleButton, Grid } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import { useTheme } from '@mui/material/styles';
+import ForecastBarChart from '../components/ForecastBarChart';
 
 interface Transaction {
   _id: string;
@@ -18,7 +19,7 @@ interface Transaction {
 }
 
 const Dashboard: React.FC = () => {
-  const { currency } = useCurrency();
+  const { formatCurrency } = useCurrency();
   const theme = useTheme();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [summary, setSummary] = useState({ revenue: 0, expenses: 0, savings: 0, balance: 0, transactionCount: 0 });
@@ -36,19 +37,20 @@ const Dashboard: React.FC = () => {
   const rowsPerPage = 8;
   const [sortBy, setSortBy] = useState<'date'|'amount'|'category'|'status'>('date');
   const [sortDir, setSortDir] = useState<'asc'|'desc'>('desc');
-  // --- Currency Formatting ---
-  const formatCurrency = (amount: number) => {
-    if (currency === 'INR') return `₹${amount.toLocaleString('en-IN')}`;
-    if (currency === 'USD') return `$${amount.toLocaleString('en-US')}`;
-    if (currency === 'EUR') return `€${amount.toLocaleString('en-EU')}`;
-    return `${amount}`;
-  };
+  // Currency formatting comes from CurrencyContext and includes conversion.
   // --- Graph Filter State ---
   const [graphFilterAnchor, setGraphFilterAnchor] = useState<null | HTMLElement>(null);
   const [graphCategoryFilter, setGraphCategoryFilter] = useState('');
   const [graphStatusFilter, setGraphStatusFilter] = useState('');
   const [graphFilterType, setGraphFilterType] = useState<'all' | 'category' | 'status'>('all');
-  const [monthlyLineData, setMonthlyLineData] = useState([]);
+  // Define interface for line chart data
+  interface LineChartData {
+    month: string;
+    revenue: number;
+    expenses: number;
+  }
+
+  const [monthlyLineData, setMonthlyLineData] = useState<LineChartData[]>([]);
 
     useEffect(() => {
     const API_URL = process.env.REACT_APP_API_URL;
@@ -117,7 +119,21 @@ const Dashboard: React.FC = () => {
         });
         const data = await res.json();
         if (res.ok && Array.isArray(data.transactions)) {
-          setTransactions(data.transactions);
+          // Normalize Mongo Extended JSON to plain JS values
+          const normalized = data.transactions.map((t: any) => {
+            const id = t._id?.$oid ?? t._id ?? undefined;
+            const dateVal = t.date?.$date ?? t.date ?? null;
+            const amountNum = typeof t.amount === 'number' ? t.amount : Number(t.amount ?? 0);
+            return {
+              ...t,
+              _id: id,
+              date: dateVal,
+              amount: isNaN(amountNum) ? 0 : amountNum,
+              category: t.category ?? 'other',
+              status: t.status ?? 'completed',
+            } as any;
+          });
+          setTransactions(normalized);
         } else {
           setError(data.message || 'Failed to fetch transactions');
         }
@@ -129,16 +145,79 @@ const Dashboard: React.FC = () => {
     fetchTransactions();
   }, []);
 
+  // Generate line chart data from filtered transactions
+  useEffect(() => {
+    const expenseCategories = new Set([
+      'rent', 'bills', 'groceries', 'travel', 'others', 'shopping', 'food',
+      'utilities', 'transport', 'medical', 'entertainment', 'subscriptions',
+      'education', 'emi', 'loan', 'insurance', 'tax', 'fuel', 'misc', 'expense'
+    ]);
+
+    const byMonth: Record<string, { revenue: number; expenses: number }> = {};
+    const monthLabel = (d: Date) => {
+      const months = [ '', 'Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec' ];
+      return `${months[d.getMonth()+1]} ${d.getFullYear()}`;
+    };
+
+    // Apply graph filters to transactions
+    const filtered = transactions.filter(t => {
+      const matchesCategory = !graphCategoryFilter || t.category === graphCategoryFilter;
+      const matchesStatus = !graphStatusFilter || t.status === graphStatusFilter;
+      return matchesCategory && matchesStatus;
+    });
+
+    for (const t of filtered) {
+      const d = new Date(t.date);
+      if (isNaN(d.getTime())) continue;
+      const key = `${d.getFullYear()}-${d.getMonth()+1}`;
+      if (!byMonth[key]) byMonth[key] = { revenue: 0, expenses: 0 };
+      if (expenseCategories.has((t.category || '').toLowerCase())) {
+        byMonth[key].expenses += t.amount || 0;
+      } else {
+        byMonth[key].revenue += t.amount || 0;
+      }
+    }
+
+    const entries = Object.keys(byMonth)
+      .map(k => {
+        const [y, m] = k.split('-').map(Number);
+        const d = new Date(y, (m||1)-1, 1);
+        return { 
+          key: k, 
+          d, 
+          month: monthLabel(d), 
+          revenue: byMonth[k].revenue, 
+          expenses: Math.abs(byMonth[k].expenses) // Make expenses positive for the chart
+        };
+      })
+      .sort((a, b) => a.d.getTime() - b.d.getTime())
+      .map(({ month, revenue, expenses }) => ({ month, revenue, expenses }));
+
+    // Cast the entries to LineChartData[] to ensure type safety
+    const lineChartData: LineChartData[] = entries.length > 0 
+      ? entries 
+      : [{ month: 'No Data', revenue: 0, expenses: 0 }];
+    
+    setMonthlyLineData(lineChartData);
+  }, [transactions, graphCategoryFilter, graphStatusFilter]);
+
   
 
-  // Category totals for chart
-  const categoryTotals = Object.values(transactions.reduce((acc, t) => {
+  // Apply graph filters to transactions
+  const filteredTransactions = transactions.filter(t => {
+    const matchesCategory = !graphCategoryFilter || t.category === graphCategoryFilter;
+    const matchesStatus = !graphStatusFilter || t.status === graphStatusFilter;
+    return matchesCategory && matchesStatus;
+  });
+
+  // Category totals for chart based on filtered transactions
+  const categoryTotals = Object.values(filteredTransactions.reduce((acc, t) => {
     const cat = t.category || 'Other';
     acc[cat] = acc[cat] || 0;
     acc[cat] += t.amount || 0;
     return acc;
   }, {} as Record<string, number>)).length > 0
-    ? Object.entries(transactions.reduce((acc, t) => {
+    ? Object.entries(filteredTransactions.reduce((acc, t) => {
         const cat = t.category || 'Other';
         acc[cat] = acc[cat] || 0;
         acc[cat] += t.amount || 0;
@@ -146,10 +225,20 @@ const Dashboard: React.FC = () => {
       }, {} as Record<string, number>)).map(([category, amount]) => ({ category, amount }))
     : [];
 
-  // Pie chart data for income/expenses
-    const pieData = [
-    { name: 'Revenue', value: summary.revenue },
-    { name: 'Expenses', value: Math.abs(summary.expenses) }
+  // Pie chart data for income/expenses based on filtered data
+  const pieData = [
+    { 
+      name: 'Revenue', 
+      value: filteredTransactions
+        .filter(t => t.amount > 0)
+        .reduce((sum, t) => sum + (t.amount || 0), 0) 
+    },
+    { 
+      name: 'Expenses', 
+      value: Math.abs(filteredTransactions
+        .filter(t => t.amount < 0)
+        .reduce((sum, t) => sum + (t.amount || 0), 0))
+    }
   ];
   const pieColors = ['#7c3aed', '#ff5c8a'];
 
@@ -217,7 +306,9 @@ const Dashboard: React.FC = () => {
             </TextField>
           </div>
           {/* Summary Cards - Modern, Figma-inspired */}
-           <div style={{ display: 'flex', gap: 32, marginBottom: 36, flexWrap: 'wrap', alignItems: 'stretch', justifyContent: 'center' }}>
+          <Grid container spacing={3} sx={{ mb: 4 }}>
+            <Grid item xs={12} md={6} lg={8}>
+              <div style={{ display: 'flex', gap: 32, marginBottom: 36, flexWrap: 'wrap', alignItems: 'stretch', justifyContent: 'center' }}>
             {/* Balance */}
             <div
               style={{
@@ -240,7 +331,7 @@ const Dashboard: React.FC = () => {
               <span style={{ fontSize: 18, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span role="img" aria-label="balance">💰</span> Balance
               </span>
-              <span style={{ fontSize: 36, fontFamily: 'monospace', fontWeight: 700, marginTop: 12, textAlign: 'left', wordBreak: 'break-all', width: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>${formatCurrency(summary.balance)}</span>
+              <span style={{ fontSize: 36, fontFamily: 'monospace', fontWeight: 700, marginTop: 12, textAlign: 'left', wordBreak: 'break-all', width: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatCurrency(summary.balance)}</span>
             </div>
             {/* Revenue */}
             <div
@@ -264,7 +355,7 @@ const Dashboard: React.FC = () => {
               <span style={{ fontSize: 18, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span role="img" aria-label="revenue">🟢</span> Revenue
               </span>
-              <span style={{ fontSize: 36, fontFamily: 'monospace', fontWeight: 700, marginTop: 12, textAlign: 'left', wordBreak: 'break-all', width: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>${formatCurrency(summary.revenue)}</span>
+              <span style={{ fontSize: 36, fontFamily: 'monospace', fontWeight: 700, marginTop: 12, textAlign: 'left', wordBreak: 'break-all', width: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatCurrency(summary.revenue)}</span>
             </div>
             {/* Expenses */}
             <div
@@ -288,7 +379,7 @@ const Dashboard: React.FC = () => {
               <span style={{ fontSize: 18, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span role="img" aria-label="expenses">🟡</span> Expenses
               </span>
-              <span style={{ fontSize: 36, fontFamily: 'monospace', fontWeight: 700, marginTop: 12, textAlign: 'left', wordBreak: 'break-all', width: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>${formatCurrency(Math.abs(summary.expenses))}</span>
+              <span style={{ fontSize: 36, fontFamily: 'monospace', fontWeight: 700, marginTop: 12, textAlign: 'left', wordBreak: 'break-all', width: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatCurrency(Math.abs(summary.expenses))}</span>
             </div>
             {/* Savings */}
             <div
@@ -312,7 +403,7 @@ const Dashboard: React.FC = () => {
               <span style={{ fontSize: 18, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span role="img" aria-label="savings">💜</span> Savings
               </span>
-              <span style={{ fontSize: 36, fontFamily: 'monospace', fontWeight: 700, marginTop: 12, textAlign: 'left', wordBreak: 'break-all', width: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>${formatCurrency(summary.savings)}</span>
+              <span style={{ fontSize: 36, fontFamily: 'monospace', fontWeight: 700, marginTop: 12, textAlign: 'left', wordBreak: 'break-all', width: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatCurrency(summary.savings)}</span>
             </div>
             {/* Transaction Count */}
             <div
@@ -338,6 +429,12 @@ const Dashboard: React.FC = () => {
               <span style={{ fontSize: 36, fontFamily: 'monospace', fontWeight: 700, marginTop: 12, textAlign: 'left', wordBreak: 'break-all', width: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{summary.transactionCount}</span>
             </div>
           </div>
+          </Grid>
+          <Grid item xs={12} md={6} lg={4}>
+            <ForecastBarChart />
+          </Grid>
+          </Grid>
+
 
           {/* Animation styles for dashboard cards */}
           <style>
@@ -462,7 +559,7 @@ const Dashboard: React.FC = () => {
               {paged.map(t => (
                 <tr key={t._id}>
                   <td style={{ border: '1px solid #eee', padding: 8 }}>{new Date(t.date).toLocaleDateString()}</td>
-                  <td style={{ border: '1px solid #eee', padding: 8 }}>{t.amount}</td>
+                  <td style={{ border: '1px solid #eee', padding: 8 }}>{formatCurrency(t.amount)}</td>
                   <td style={{ border: '1px solid #eee', padding: 8 }}>{t.category}</td>
                   <td style={{ border: '1px solid #eee', padding: 8 }}>{t.status}</td>
                 </tr>

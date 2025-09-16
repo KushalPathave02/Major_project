@@ -63,6 +63,44 @@ def create_support_request():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# POST a new feedback entry
+@messages_bp.route('/api/messages/feedback', methods=['POST'])
+@token_required
+def create_feedback():
+    db = get_db()
+    user_id = g.user_id
+    data = request.get_json() or {}
+
+    body = data.get('body') or data.get('message')
+    rating = data.get('rating')  # optional, 1-5
+
+    if not body:
+        return jsonify({'message': 'Feedback body is required'}), 400
+
+    # Build a message-like document to reuse the messages collection
+    doc = {
+        'user_id': user_id,
+        'title': 'Feedback',
+        'body': body,
+        'type': 'feedback',
+        'read': False,
+        'createdAt': datetime.datetime.utcnow(),
+    }
+    if rating is not None:
+        try:
+            r = int(rating)
+            if 1 <= r <= 5:
+                doc['rating'] = r
+        except Exception:
+            # Ignore invalid rating
+            pass
+
+    try:
+        db.messages.insert_one(doc)
+        return jsonify({'message': 'Feedback submitted successfully'}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 # PATCH to mark a message as read
 @messages_bp.route('/api/messages/<message_id>/read', methods=['PATCH'])
 @token_required

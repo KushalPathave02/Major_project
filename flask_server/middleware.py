@@ -5,6 +5,10 @@ import jwt
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
+        # Let CORS preflight requests pass through without auth
+        if request.method == 'OPTIONS':
+            return f(*args, **kwargs)
+
         token = None
         if 'Authorization' in request.headers:
             auth_header = request.headers['Authorization']

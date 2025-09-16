@@ -134,41 +134,7 @@ const fetchAnalytics = async () => {
             </ResponsiveContainer>
           </div>
         </Box>
-        {/* Top 5 Expense Categories */}
-        <Box sx={{ background: 'rgba(44,62,80,0.17)', borderRadius: 3, p: 3, mb: 4, boxShadow: 2 }}>
-          <Typography variant="h6" sx={{ mb: 2 }}>Top 5 Expense Categories (This Month)</Typography>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={data.topExpenses} margin={{ top: 8, right: 32, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#23263a" />
-              <XAxis dataKey="category" stroke="#b0b8d1" />
-              <YAxis stroke="#b0b8d1" />
-              <Tooltip />
-              <Bar dataKey="amount" fill="#ff5c8a" radius={[8, 8, 0, 0]} label={({ value, x, y, width, height }) => (
-  <text
-    x={x! + width! / 2}
-    y={y! - 8}
-    textAnchor="middle"
-    fill="#b0b8d1"
-    fontSize={14}
-    fontWeight={700}
-  >
-    {formatCurrency(value)}
-  </text>
-)} />
-            </BarChart>
-          </ResponsiveContainer>
-        </Box>
-        {/* Spend Insights */}
-        <Box sx={{ background: 'rgba(44,62,80,0.17)', borderRadius: 3, p: 3, mb: 4, boxShadow: 2 }}>
-          <Typography variant="h6" sx={{ mb: 1 }}>User Spend Insights</Typography>
-          {data.spendChange && (
-            <Typography>
-              {data.spendChange.more
-                ? `You spent ${Math.abs(data.spendChange.percent)}% more than last month.`
-                : `You spent ${Math.abs(data.spendChange.percent)}% less than last month.`}
-            </Typography>
-          )}
-        </Box>
+        {/* Removed Top 5 Expense Categories and User Spend Insights as requested */}
       </Box>
       <ChatBot />
     </DashboardLayout>

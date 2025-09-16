@@ -14,7 +14,7 @@ const Wallet: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const userId = localStorage.getItem('userId');
+  // userId no longer needed for wallet endpoints; server uses token
   const token = localStorage.getItem('token');
 
   const fetchBalance = async () => {
@@ -26,11 +26,16 @@ const Wallet: React.FC = () => {
       return;
     }
     try {
-      const res = await fetch(`${API_URL}/api/wallet/${userId}/balance`, {
+      const res = await fetch(`${API_URL}/api/wallet/balance`, {
         headers: { Authorization: token ? `Bearer ${token}` : '' }
       });
       const data = await res.json();
-      setBalance(data.walletBalance);
+      if (!res.ok) {
+        setError(data.error || data.message || `Failed to fetch balance (${res.status})`);
+        setBalance(null);
+      } else {
+        setBalance(data.walletBalance);
+      }
     } catch {
       setError('Failed to fetch balance');
     } finally {
@@ -44,11 +49,16 @@ const Wallet: React.FC = () => {
       return;
     }
     try {
-      const res = await fetch(`${API_URL}/api/wallet/${userId}/history`, {
+      const res = await fetch(`${API_URL}/api/wallet/history`, {
         headers: { Authorization: token ? `Bearer ${token}` : '' }
       });
       const data = await res.json();
-      setHistory(data.transactions || []);
+      if (!res.ok) {
+        setError(data.error || data.message || `Failed to fetch history (${res.status})`);
+        setHistory([]);
+      } else {
+        setHistory(data.transactions || []);
+      }
     } catch {
       setError('Failed to fetch history');
     }
@@ -70,14 +80,20 @@ const Wallet: React.FC = () => {
       setLoading(false);
       return;
     }
+    const amt = Number(amount);
+    if (!isFinite(amt) || amt <= 0) {
+      setError('Enter a valid amount greater than 0');
+      setLoading(false);
+      return;
+    }
     try {
-      const res = await fetch(`${API_URL}/api/wallet/${userId}/${type}`, {
+      const res = await fetch(`${API_URL}/api/wallet/${type}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: token ? `Bearer ${token}` : ''
         },
-        body: JSON.stringify({ amount: Number(amount) })
+        body: JSON.stringify({ amount: amt })
       });
       const data = await res.json();
       if (res.ok) {
@@ -85,7 +101,7 @@ const Wallet: React.FC = () => {
         setSuccess(type === 'add' ? 'Money added!' : 'Money withdrawn!');
         fetchHistory();
       } else {
-        setError(data.error || 'Action failed');
+        setError(data.error || data.message || 'Action failed');
       }
     } catch {
       setError('Action failed');

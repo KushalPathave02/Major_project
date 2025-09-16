@@ -20,13 +20,16 @@ class User:
         return check_password_hash(self.password_hash, password)
 
     def to_dict(self):
-        return {
-            '_id': str(self._id),
+        result = {
             'name': self.name,
             'email': self.email,
             'role': self.role,
             'profilePic': self.profile_pic,
             'twoFAEnabled': self.two_fa_enabled,
             'joinDate': self.join_date.isoformat() + 'Z',
+            'wallet_balance': self.wallet_balance,
             'walletBalance': self.wallet_balance
         }
+        if self._id is not None:
+            result['_id'] = str(self._id)
+        return result

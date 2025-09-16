@@ -5,3 +5,8 @@ pymongo
 PyJWT
 python-dateutil
 google-generativeai
+pandas>=2.0.0
+statsmodels>=0.14.0
+scikit-learn>=1.0.0
+Flask-Mail
+itsdangerous

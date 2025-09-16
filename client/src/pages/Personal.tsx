@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Box, Typography, TextField, Button, Avatar, Switch, FormControlLabel, CircularProgress, IconButton
+  Box, Typography, TextField, Button, Avatar, Switch, FormControlLabel, CircularProgress, IconButton, InputAdornment
 } from '@mui/material';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import CloseIcon from '@mui/icons-material/Close';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
@@ -17,6 +19,7 @@ const Personal: React.FC = () => {
   const [twoFA, setTwoFA] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPwd, setShowPwd] = useState({ current: false, new: false, confirm: false });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -169,27 +172,66 @@ const Personal: React.FC = () => {
           <Typography variant="subtitle1" sx={{ color: '#fff', mb: 1 }}>Change Password</Typography>
           <TextField
             label="Current Password"
-            type="password"
+            type={showPwd.current ? 'text' : 'password'}
             name="current"
             value={passwords.current}
             onChange={e => setPasswords({ ...passwords, current: e.target.value })}
             fullWidth sx={{ mb: 2 }}
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label={showPwd.current ? 'Hide password' : 'Show password'}
+                    onClick={() => setShowPwd(p => ({ ...p, current: !p.current }))}
+                    edge="end"
+                  >
+                    {showPwd.current ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              )
+            }}
           />
           <TextField
             label="New Password"
-            type="password"
+            type={showPwd.new ? 'text' : 'password'}
             name="new"
             value={passwords.new}
             onChange={e => setPasswords({ ...passwords, new: e.target.value })}
             fullWidth sx={{ mb: 2 }}
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label={showPwd.new ? 'Hide password' : 'Show password'}
+                    onClick={() => setShowPwd(p => ({ ...p, new: !p.new }))}
+                    edge="end"
+                  >
+                    {showPwd.new ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              )
+            }}
           />
           <TextField
             label="Confirm New Password"
-            type="password"
+            type={showPwd.confirm ? 'text' : 'password'}
             name="confirm"
             value={passwords.confirm}
             onChange={e => setPasswords({ ...passwords, confirm: e.target.value })}
             fullWidth sx={{ mb: 2 }}
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label={showPwd.confirm ? 'Hide password' : 'Show password'}
+                    onClick={() => setShowPwd(p => ({ ...p, confirm: !p.confirm }))}
+                    edge="end"
+                  >
+                    {showPwd.confirm ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              )
+            }}
           />
           {passwordMsg && <Typography sx={{ color: passwordMsg.includes('success') ? '#16ff7c' : '#ff1744' }}>{passwordMsg}</Typography>}
           <Button variant="contained" color="secondary" sx={{ mt: 1 }} disabled={saving || !passwords.current || !passwords.new || passwords.new !== passwords.confirm}
@@ -199,7 +241,7 @@ const Personal: React.FC = () => {
               const token = localStorage.getItem('token');
               const userId = localStorage.getItem('userId');
               try {
-                const res = await fetch(`${API_URL}/users/${userId}/password`, {
+                const res = await fetch(`${API_URL}/api/users/${userId}/password`, {
                   method: 'PUT',
                   headers: { 'Content-Type': 'application/json', Authorization: token ? `Bearer ${token}` : '' },
                   body: JSON.stringify(passwords)
